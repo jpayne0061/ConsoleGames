@@ -9,19 +9,25 @@ namespace ConsoleAnimations
 {
     class Program
     {
-        const int MAX_LINES = 50;
+        const int MAX_LINES =      1000;
         const string HIGH_SCORE_FILE_NAME = "high_scores.txt";
         const int NUM_TOP_SCORES = 5;
         const char PLAYER_CHAR = '*';
+        const int BOUNDARY_START = 3;
+        const int BOUNDARY_END =   15;
 
         static char[] GAME_STATE_LINE = new char[52];
-        static int PLAYER_POSITION = 5;
+        static int PLAYER_POSITION = (BOUNDARY_START + BOUNDARY_END) / 2;
         static int SCORE = 0;
         static int CURRENT_LINE_COUNT = 0;
-        static int GAME_SPEED = 150; //the lower the faster
+        static int GAME_SPEED = 300;
+        static int GAME_SPEED_INCREASE = 20;
+        static int GAME_SPEED_INCREASE_INTERVAL = 40;
 
         static void Main(string[] args)
         {
+            Console.OutputEncoding = System.Text.Encoding.UTF8;
+
             if (!File.Exists(HIGH_SCORE_FILE_NAME))
             {
                 File.WriteAllText(HIGH_SCORE_FILE_NAME, string.Empty);
@@ -32,7 +38,9 @@ namespace ConsoleAnimations
 
         static void StartGame()
         {
-            Console.WriteLine("Hit 'Enter' to start the game");
+            Console.ForegroundColor = ConsoleColor.DarkYellow;
+            Console.WriteLine("Stay in the Lines! Hit 'Enter' to start the game");
+            Console.ResetColor();
 
             var ci = Console.ReadKey();
 
@@ -101,7 +109,7 @@ namespace ConsoleAnimations
                 }
             }
 
-            GAME_STATE_LINE[5] = '*';
+            GAME_STATE_LINE[PLAYER_POSITION] = '*';
 
             GAME_STATE_LINE[42] = 'S';
             GAME_STATE_LINE[43] = 'C';
@@ -115,50 +123,62 @@ namespace ConsoleAnimations
 
         static void Gammit()
         {
-            int beginBoundary = 3;
-            int endBoundary = 8;
+            int beginBoundary = BOUNDARY_START;
+            int endBoundary = BOUNDARY_END;
 
             InitializeGameStateLine(beginBoundary, endBoundary);
 
-            Func<int, int> currentOperator = Increment;
+            Func<int, int> gammitDirection = Right;
+
+            Random r = new Random();
 
             while (true)
             {
+                
                 if(CURRENT_LINE_COUNT > MAX_LINES)
                 {
                     break;
+                }
+
+                if(CURRENT_LINE_COUNT % GAME_SPEED_INCREASE_INTERVAL == 0)
+                {
+                    GAME_SPEED -= GAME_SPEED_INCREASE;
                 }
 
                 if (PLAYER_POSITION >= beginBoundary && PLAYER_POSITION <= endBoundary)
                 {
                     SCORE += 1;
                 }
-
-                char boundary_char = currentOperator == Decrement ? '/' : '\\';
-
-                if (beginBoundary == 1 || beginBoundary == 14)
+                else
                 {
-                    boundary_char = '|';
+                    GameOver(beginBoundary, endBoundary);
+                    break;
                 }
 
-                WriteGameLine(beginBoundary, endBoundary, boundary_char);
+                char boundary_char = gammitDirection == Left ? '/' : '\\';
 
-                if (endBoundary > 18)
+                WriteGameLine(beginBoundary, endBoundary);
+
+                if (endBoundary > 25)
                 {
-                    currentOperator =  Decrement;
+                    gammitDirection =  Left;
                 }
                 else if(beginBoundary < 2)
                 {
-                    currentOperator = Increment;
+                    gammitDirection = Right;
+                }
+                else if(r.Next(2) == 1 && CURRENT_LINE_COUNT % 8 == 0)
+                {
+                    gammitDirection = gammitDirection == Left ? Right : Left;
                 }
 
                 GAME_STATE_LINE[endBoundary] = ' ';
                 GAME_STATE_LINE[beginBoundary] = ' ';
 
-                endBoundary  = currentOperator(endBoundary);
-                beginBoundary = currentOperator(beginBoundary);
+                endBoundary  = gammitDirection(endBoundary);
+                beginBoundary = gammitDirection(beginBoundary);
 
-                boundary_char = currentOperator == Decrement ? '/' : '\\';
+                boundary_char = gammitDirection == Left ? '/' : '\\';
 
 
                 GAME_STATE_LINE[endBoundary] = boundary_char;
@@ -173,12 +193,27 @@ namespace ConsoleAnimations
                 GAME_STATE_LINE[PLAYER_POSITION] = PLAYER_CHAR;
 
                 Thread.Sleep(GAME_SPEED);
-
+                
                 CURRENT_LINE_COUNT++;
-
             }
 
             Console.ResetColor();
+        }
+
+        static void GameOver(int beginBoundaryIndex, int endBoundaryIndex)
+        {
+
+            for (int i = 0; i < 10; i++)
+            {
+                Console.BackgroundColor = ConsoleColor.DarkRed;
+                WriteGameLine(beginBoundaryIndex, endBoundaryIndex, endGame: true);
+                Thread.Sleep(100);
+                Console.SetCursorPosition(Console.CursorLeft - 52, Console.CursorTop);
+                Console.WriteLine("                                                    ");
+                Thread.Sleep(100);
+            }
+
+            ScorePlayer();
         }
 
         static void ScorePlayer()
@@ -241,67 +276,41 @@ namespace ConsoleAnimations
             return true;
         }
 
-        static void WriteGameLine(int beginBoundaryIndex, int endBoundaryIndex, char boundaryChar)
+        static void WriteGameLine(int beginBoundaryIndex, int endBoundaryIndex, bool endGame = false)
         {
             lock(GAME_STATE_LINE)
             {
-                int playerPosition = PLAYER_POSITION;
+                int playerPosition = PLAYER_POSITION; //player position used by other thread. store and operate on copy
 
-                string letters = new string(GAME_STATE_LINE);
-
-                if (beginBoundaryIndex == 1 || beginBoundaryIndex == 14)
-                {
-                    letters = letters.Replace('\\', '|').Replace('/', '|');
-                }
+                string gameStateLine = new string(GAME_STATE_LINE);
 
                 int[] gamePieces = (new int[] { beginBoundaryIndex, endBoundaryIndex, playerPosition })
                                     .OrderBy(x => x).ToArray();
 
-                if (PLAYER_POSITION >= beginBoundaryIndex && playerPosition <= endBoundaryIndex)
+                Console.Write(gameStateLine.Substring(0, playerPosition));
+                Console.ForegroundColor = ConsoleColor.Red;
+                Console.Write(PLAYER_CHAR);
+                Console.ResetColor();
+
+                if(!endGame)
                 {
-                    Console.Write(letters.Substring(0, beginBoundaryIndex));
-
-                    Console.ForegroundColor = ConsoleColor.Blue;
-                    Console.Write(boundaryChar);
-                    Console.ResetColor();
-
-                    Console.Write(letters.Substring(beginBoundaryIndex + 1, Math.Max(playerPosition - beginBoundaryIndex - 1, 0)));
-                    Console.ResetColor();
-
-                    Console.ForegroundColor = ConsoleColor.Red;
-                    Console.Write(PLAYER_CHAR);
-                    Console.ResetColor();
-
-                    Console.Write(letters.Substring(PLAYER_POSITION + 1, Math.Max(Math.Min(endBoundaryIndex - playerPosition - 1, 3), 0)));
-                    Console.ResetColor();
-
-                    if (PLAYER_POSITION != endBoundaryIndex)
-                    {
-                        Console.ForegroundColor = ConsoleColor.Blue;
-                        Console.Write(boundaryChar);
-                        Console.ResetColor();
-                    }
-
-                    Console.WriteLine(letters.Substring(endBoundaryIndex + 1));
-                    Console.ResetColor();
+                    Console.WriteLine(gameStateLine.Substring(playerPosition + 1));
                 }
                 else
                 {
-                    Console.Write(letters.Substring(0, playerPosition));
-                    Console.ForegroundColor = ConsoleColor.Red;
-                    Console.Write(PLAYER_CHAR);
-                    Console.ResetColor();
-                    Console.WriteLine(letters.Substring(playerPosition + 1));
+                    Console.Write(gameStateLine.Substring(playerPosition + 1));
                 }
+
+                return;
             }
         }
 
-        static int Increment(int x)
+        static int Right(int x)
         {
             return x + 1;
         }
 
-        static int Decrement(int x)
+        static int Left(int x)
         {
             return x - 1;
         }
