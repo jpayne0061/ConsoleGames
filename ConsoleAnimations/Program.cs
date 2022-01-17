@@ -18,6 +18,7 @@ namespace ConsoleAnimations
         static int PLAYER_POSITION = 5;
         static int SCORE = 0;
         static int CURRENT_LINE_COUNT = 0;
+        static int GAME_SPEED = 150; //the lower the faster
 
         static void Main(string[] args)
         {
@@ -86,11 +87,8 @@ namespace ConsoleAnimations
 
         }
 
-        static void Gammit()
+        static void InitializeGameStateLine(int beginBoundary, int endBoundary)
         {
-            int beginBoundary = 3;
-            int endBoundary = 8;
-
             for (int i = 0; i < GAME_STATE_LINE.Length - 10; i++)
             {
                 if (i == beginBoundary || i == endBoundary)
@@ -113,13 +111,19 @@ namespace ConsoleAnimations
             GAME_STATE_LINE[47] = ':';
             GAME_STATE_LINE[48] = ' ';
             GAME_STATE_LINE[49] = '0';
+        }
+
+        static void Gammit()
+        {
+            int beginBoundary = 3;
+            int endBoundary = 8;
+
+            InitializeGameStateLine(beginBoundary, endBoundary);
 
             Func<int, int> currentOperator = Increment;
 
             while (true)
             {
-                CURRENT_LINE_COUNT++;
-
                 if(CURRENT_LINE_COUNT > MAX_LINES)
                 {
                     break;
@@ -168,7 +172,10 @@ namespace ConsoleAnimations
 
                 GAME_STATE_LINE[PLAYER_POSITION] = PLAYER_CHAR;
 
-                Thread.Sleep(100);
+                Thread.Sleep(GAME_SPEED);
+
+                CURRENT_LINE_COUNT++;
+
             }
 
             Console.ResetColor();
